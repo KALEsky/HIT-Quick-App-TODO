@@ -17,23 +17,6 @@
 
 ## 页面和数据流
 
-```mermaid
-flowchart LR
-    Main[MainPage]
-    Input[Input 页面]
-    Store[(system.storage: msg)]
-    Canvas[Canvas 统计]
-    ASR[service.asr]
-    Shortcut[system.shortcut]
-
-    Main -->|新建 / 编辑| Input
-    Input -->|保存事项| Store
-    Store -->|onShow 读取| Main
-    Main --> Canvas
-    Input --> ASR
-    Main --> Shortcut
-```
-
 事项没有单独的数据库表，而是以一个 JSON 对象保存：
 
 ```json
