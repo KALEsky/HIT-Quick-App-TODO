@@ -1,0 +1,114 @@
+<template>
+  <div class="item">
+    <list class='micro-list'>
+      <list-item class="micro-text" type="item" onclick='openInput(item.name,item.start,item.end,type,idx)'>
+        <text class='text1'>{{item.name}}</text>
+        <div class='time'>
+          <text class='text2'>开始: {{item.start}}</text>
+          <text class='text2'>结束: {{item.end}}</text>
+        </div>
+      </list-item>
+      <list-item class="micro-btn" type="item">
+        <div if='{{type != 2}}' class='check-btn' onclick="markDone(idx)"></div>
+        <div if="{{type == 2}}" class='cancle-btn' onclick="delItem(idx)"></div>
+      </list-item>
+    </list>
+  </div>
+</template>
+
+<script>
+import router from '@system.router'
+
+export default {
+  // type: todo == 0, doing == 1, done == 2
+  props: ['item', 'idx', 'type'],
+  
+  //标记任务已完成
+  markDone(idx) {
+    this.$dispatch('doneItem', { idx: idx, type: this.type })
+  },
+
+  //删除任务
+  delItem(idx) {
+    this.$dispatch('delItem', { idx: idx })
+  },
+
+  //编辑任务
+  openInput(name, start, end, type, idx) {
+    router.push({
+      uri: '/Input',
+      params: {
+        pushName: name,
+        pushStart: start,
+        pushEnd: end,
+        pushType: type,
+        pushIdx: idx
+      }
+    })
+  },
+}
+</script>
+
+<style lang="less">
+@import "../Common/css/font.css";
+
+.item {
+  flex: 1;
+  height: 120px;
+  margin-bottom: 15px;
+  .micro-list {
+    flex: 1;
+    height: 120px;
+    flex-direction: row;
+    .micro-text {
+      flex: 1;
+      flex-direction: column;
+      height: 120px;
+      width: 600px;
+      margin-left: 75px;
+      margin-right: 75px;
+      flex-grow: 0;
+      background-color: #ffffff;
+      border: 1px solid rgb(238, 240, 245);
+      border-radius: 20px;
+      .text1 {
+        padding-top: 12px;
+        padding-left: 50px;
+        font-weight: bold;
+        font-size: 38px;
+        color: #000000;
+      }
+      .time {
+        flex-direction: row;
+        margin-top: 10px;
+        padding-left: 30px;
+        .text2 {
+          width: 320px;
+          font-size: 23px;
+          margin-right: 30px;
+          font-family: myfont, serif;
+        }
+      }
+    }
+    .micro-btn {
+      flex: 0;
+      height: 100px;
+      width: 60px;
+      background-color: #f5f5f5;
+    }
+  }
+}
+
+.check-btn {
+  width: 50px;
+  height: 50px;
+  margin-top: 35px;
+  background-image: url("/Common/checked.png");
+}
+.cancle-btn {
+  width: 50px;
+  height: 50px;
+  margin-top: 35px;
+  background-image: url("/Common/cancle.png");
+}
+</style>

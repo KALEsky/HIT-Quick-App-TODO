@@ -1,0 +1,422 @@
+<template>
+  <div class="input-page">
+    <text>Add New Event</text>
+    <div class='input-area'>
+      <div class='task-area'>
+        <text class='normal-text'>Task Name</text>
+        <input class="add-btn" type="button" value="完成" onclick="addEvent" />
+      </div>
+      <!-- 事项名称、语音输入 -->
+      <div class='event-input'>
+        <input type="text" placeholder='What needs to be done?' value="{{eventName}}" onchange="updateValue"></input>
+        <div class='clear-btn' onclick='clearEventName'></div>
+        <div class='asr-image1' onclick='startAsr'></div>
+      </div>
+      <div class='ddl-area'>
+        <text class='normal-text'>Deadline</text>
+        <div class="btn-check {{checked ? 'btn-checked' : ''}}" onclick="turnChecked"></div>
+        <text class='ddl'>NO DDL</text>
+      </div>
+      <!-- 输入开始时间 -->
+      <div class='time-area'>
+        <text>from:</text>
+        <div class='time-input'>
+          <picker class='date-picker' type="date" value="{{start_date}}" onchange="getStartDate"></picker>
+          <div class='date-image'></div>
+          <picker class='time-picker' type="time" value="{{start_time}}" onchange="getStartTime"></picker>
+          <div class='time-image'></div>
+        </div>
+      </div>
+      <!-- 输入结束时间 -->
+      <div class='time-area'>
+        <text>to:</text>
+        <div class='time-input'>
+          <picker class='date-picker' type="date" value="{{end_date}}" onchange="getEndDate"></picker>
+          <div class='date-image'></div>
+          <picker class='time-picker' type="time" value="{{end_time}}" onchange="getEndTime"></picker>
+          <div class='time-image'></div>
+        </div>
+      </div>
+      <!-- <div class="asr-btn {{scale}} {{enabled ? 'asr-btn-enabled' : 'asr-btn-disabled'}}" ontouchstart="startAsr">
+        <div class='asr-image2'></div>
+      </div> -->
+    </div>
+  </div>
+</template>
+
+<script>
+import asr from '@service.asr'
+import storage from '@system.storage'
+import vibrator from '@system.vibrator'
+import router from '@system.router'
+
+export default {
+  private: {
+    eventName: '',
+    nameBackUp: '',
+    start_date: '',
+    start_time: '',
+    end_date: '',
+    end_time: '',
+    checked: false,
+    enabled: false,
+    scale: ''
+  },
+  //修改任务时使用，新建时不使用
+  protected: {
+    pushName: '',
+    pushStart: '',
+    pushEnd: '',
+    pushType: '',
+    pushIdx: ''
+  },
+
+  onInit() {
+    this.$page.setTitleBar({ text: 'add todos' })
+    this.initAsr()
+    this.initTime()
+    this.eventName = this.pushName
+    if (this.pushStart != 'ok') {
+      let list2 = this.pushStart.split('&')
+      this.start_date = list2[0]
+      this.start_time = list2[1]
+    }
+    if (this.pushEnd != 'wow! no ddl!') {
+      let list1 = this.pushEnd.split('&')
+      this.end_date = list1[0]
+      this.end_time = list1[1]
+    }
+  },
+  onDestroy() {
+
+  },
+
+  //初始化picker显示内容（from为当前时间，to为一天后）
+  initTime() {
+    const date = new Date()
+    const Y = date.getFullYear()
+    const M = date.getMonth() + 1
+    const D = date.getDate()
+    const H = date.getHours()
+    const m = date.getMinutes()
+    this.start_date = Y + '-' + M + '-' + D
+    this.start_time = H + ':' + m
+    date.setTime(date.getTime() + 24 * 60 * 60 * 1000)
+    const TY = date.getFullYear()
+    const TM = date.getMonth() + 1
+    const TD = date.getDate()
+    const TH = date.getHours()
+    const Tm = date.getMinutes()
+    this.end_date = TY + '-' + TM + '-' + TD
+    this.end_time = TH + ':' + Tm
+  },
+
+  initAsr() {
+    let that = this
+    asr.oncompleteresult = ({ result }) => {
+      this.eventName = this.nameBackUp + `${result}`
+    }
+  },
+  startAsr() {
+    let that = this
+    this.nameBackUp = this.eventName
+    asr.start({
+      success: function () {
+        //多调用几遍使震动明显一些
+        vibrator.vibrate({ mode: 'short' })
+        vibrator.vibrate({ mode: 'short' })
+        vibrator.vibrate({ mode: 'short' })
+      },
+      fail: function (data, code) {
+        that.eventName = `start fail, code=${code}, data=${data}`
+      }
+    })
+  },
+
+  updateValue(evt) {
+    this.eventName = evt.value
+  },
+  clearEventName() {
+    this.eventName = ''
+  },
+
+  addEvent() {
+    if (this.eventName === '') {
+      this.$app.$def.makeToast('error: task name must not be null')
+    }
+    else {
+      let start = this.start_date + '&' + this.start_time
+      let end = this.checked ? 'wow! no ddl!' : (this.end_date + '&' + this.end_time)
+      let that = this
+      storage.get({
+        key: 'msg',
+        success: function (data) {
+          if (data != '') {
+            // string转数组
+            let list = JSON.parse(data)
+            // 修改事项时触发
+            if (that.pushType == 0) list.toDoList.splice(that.pushIdx, 1)
+            else if (that.pushType == 1) list.doingList.splice(that.pushIdx, 1)
+            else if (that.pushType == 2) list.doneList.splice(that.pushIdx, 1)
+            // 判断todo/doing
+            let arr = start.replace(/[:\-\\&]/g, ',').split(',')
+            let startDate = new Date(arr[0], arr[1] - 1, arr[2], arr[3], arr[4], 0, 0)
+            let nowDate = new Date()
+            if (nowDate.getTime() > startDate.getTime()) list.doingList.push({ name: that.eventName, start: start, end: end })
+            else list.toDoList.push({ name: that.eventName, start: start, end: end })
+            // 保存list并返回
+            storage.set({
+              key: 'msg',
+              value: list,
+              success: function () {
+                that.eventName = ''
+                router.back()
+              },
+              fail: function (data, code) {
+                that.$app.$def.makeToast(`handling fail, code = ${code}`)
+              }
+            })
+          }
+        },
+        fail: function (data, code) {
+          that.$app.$def.makeToast(`handling fail, code = ${code}`)
+        }
+      })
+    }
+  },
+
+  //以下为picker组件的函数
+  getStartDate(e) {
+    this.start_date = e.year + '-' + (e.month + 1) + '-' + e.day
+  },
+  getStartTime(e) {
+    this.start_time = e.hour + ':' + e.minute
+  },
+  getEndDate(e) {
+    this.end_date = e.year + '-' + (e.month + 1) + '-' + e.day
+  },
+  getEndTime(e) {
+    this.end_time = e.hour + ':' + e.minute
+  },
+  
+  //切换是否no ddl
+  turnChecked() {
+    this.checked = !this.checked
+  },
+  //显示语音输入按钮
+  enableAsrBtn() {
+    this.enabled = !this.enabled
+  }
+}
+</script>
+
+<style lang="less">
+@import "../Common/css/font.css";
+
+/* 主Widget树 */
+.input-page {
+  flex-direction: column;
+  > text {
+    height: 200px;
+    font-size: 40px;
+    color: #000000;
+    background-color: #ffffff;
+    font-weight: bold;
+    text-align: center;
+    font-family: myfont-bold, serif;
+  }
+  .input-area {
+    flex: 1;
+    padding-left: 50px;
+    padding-right: 50px;
+    flex-direction: column;
+    background-color: rgb(243, 245, 250);
+    .task-area {
+      flex-direction: row;
+      .add-btn {
+        width: 150px;
+        height: 80px;
+        font-size: 35px;
+        border-radius: 25px;
+        color: #ffffff;
+        background-color: #473cb1;
+        align-self: flex-end;
+        margin-bottom: 30px;
+        margin-left: 300px;
+      }
+    }
+    .ddl-area {
+      flex-direction: row;
+      .ddl {
+        font-size: 25px;
+        color: #000000;
+        margin-top: 5px;
+        flex-wrap: nowrap;
+        font-family: myfont, serif;
+      }
+    }
+    .event-input {
+      height: 100px;
+      border-radius: 20px;
+      background-color: #ffffff;
+      border: 5px solid rgb(238, 240, 245);
+      flex-direction: row;
+      > input {
+        flex-grow: 1;
+        padding: 10px 30px;
+      }
+    }
+    .time-area {
+      flex-direction: row;
+      .time-input {
+        flex-direction: row;
+        height: 100px;
+        width: 500px;
+        border-radius: 20px;
+        margin-bottom: 10px;
+        background-color: #ffffff;
+        border: 3px solid rgb(238, 240, 245);
+        .date-picker {
+          width: 180px;
+          margin-left: 50px;
+          flex: 0;
+          font-family: myfont, serif;
+        }
+        .time-picker {
+          width: 100px;
+          margin-left: 10px;
+          flex: 0;
+          font-family: myfont, serif;
+        }
+        .date-image {
+          width: 40px;
+          height: 40px;
+          margin: 30px 25px 30px 5px;
+          border-width: 0px;
+          background-image: url("/Common/calendar.png");
+        }
+        .time-image {
+          width: 40px;
+          height: 40px;
+          margin: 30px 15px 30px 5px;
+          border-width: 0px;
+          background-image: url("/Common/time.png");
+        }
+      }
+      > text {
+        width: 120px;
+        font-size: 30px;
+        text-align: center;
+        font-family: myfont, serif;
+      }
+    }
+    .asr-btn {
+      flex: 0;
+    }
+  }
+}
+
+.normal-text {
+  padding-top: 50px;
+  padding-bottom: 50px;
+  width: 250px;
+  flex-wrap: nowrap;
+  font-size: 35px;
+  font-weight: bold;
+  font-family: myfont-bold, serif;
+  color: #000000;
+}
+
+/* 按钮、图片 */
+.btn-check {
+  width: 50px;
+  height: 50px;
+  margin: 50px 10px 25px 225px;
+  border-radius: 25px;
+  border-width: 2px;
+  border-color: #808080;
+}
+
+.btn-checked {
+  border-width: 0px;
+  background-image: url("/Common/checked.png");
+}
+
+.asr-image1 {
+  width: 40px;
+  height: 40px;
+  margin: 30px;
+  border-width: 0px;
+  flex-shrink: 0;
+  background-image: url("/Common/asr.png");
+}
+
+.asr-image2 {
+  width: 40px;
+  height: 40px;
+  margin: 40px 35px 30px 37.5px;
+  border-width: 0px;
+  background-image: url("/Common/asr.png");
+}
+
+.clear-btn {
+  width: 40px;
+  height: 40px;
+  margin: 30px 0px 30px 0px;
+  border-width: 0px;
+  flex-shrink: 0;
+  background-image: url("/Common/cancle.png");
+}
+
+.asr-btn-enabled {
+  flex: 0;
+  height: 120px;
+  width: 120px;
+  border-radius: 60px;
+  border-width: 5px;
+  border-color: rgb(238, 240, 245);
+  align-self: center;
+  margin-top: 70px;
+  background-color: #ffffff;
+}
+
+.asr-btn-disabled {
+  height: 0px;
+  width: 0px;
+}
+
+/* 动画 */
+.scale {
+  animation-name: scale;
+  animation-duration: 200ms;
+  animation-fill-mode: forwards;
+  animation-timing-function: linear;
+  animation-iteration-count: 1;
+}
+
+@keyframes scale {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.6);
+  }
+}
+
+.stop {
+  animation-name: stop;
+  animation-duration: 100ms;
+  animation-fill-mode: forwards;
+  animation-timing-function: linear;
+  animation-iteration-count: 1;
+}
+
+@keyframes stop {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+</style>
